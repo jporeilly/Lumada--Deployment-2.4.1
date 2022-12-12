@@ -1,0 +1,182 @@
+# Installation of LDOS 1.1.1
+- name: Install NFS tools on all hosts
+  become: true
+  become_method: sudo
+  gather_facts: true
+  hosts: "all"
+  vars:
+    ansible_python_interpreter: /usr/bin/python
+    
+  tasks:
+    # Install NFS. DFM requires an NFS mount point for .kettle with the KTR and KJB content.
+    - name: Yum install nfs-utils
+      raw: yum install -y nfs-utils
+      when: ansible_distribution == "CentOS"
+      tags: 
+       - prereq
+
+    - name: apt install nfs-common
+      raw: apt install -y nfs-common
+      when: ansible_distribution == "Ubuntu"
+      tags: 
+       - prereq
+
+- name: Install LDOS over running Foundry cluster
+  become: false
+  gather_facts: true
+  hosts: "{{ groups['installer'][0] }}"
+  vars:
+    logs_dir: /installers/logs
+    env_file: /installers/LumadaDataOpsSuite-1.1.1/installer/env.properties
+    ldos_home: /installers/LumadaDataOpsSuite-1.1.1
+    ldos_archive: Lumada-DataOps-Suite-1.1.1.gz
+    installer_archive: Lumada-DataOps-Suite-installer-1.1.1.zip
+    
+    ansible_python_interpreter: /usr/bin/python3
+    
+  tasks:
+    # Checks for the logs directory
+    - name: Check if 'logs' directory exists
+      stat:
+        path: "{{ logs_dir }}"
+      register: logs
+      tags: 
+       - info 
+
+    - debug: 
+        msg: "logs directory exists: {{ logs.stat.exists }}"
+      tags: 
+       - info           
+
+    # Create a logs directory - if required
+    - name: Creates 'logs' Directory
+      file:
+       path: "{{ logs_dir }}"
+       state: directory
+      when: logs.stat.exists == false
+      tags: 
+       - info
+       - install
+    
+    # Check for LDOS 1.1.1 directory
+    - name: Check for 'LDOS 1.1.1' directory exists
+      stat:
+        path: "{{ ldos_home }}"
+      register: ldos
+      tags: 
+       - info
+
+    - debug: 
+        msg: "LDOS 1.1.1 directory exists: {{ ldos.stat.exists }}"
+      tags: 
+       - info
+
+    # Creates LDOS 1.1.1 install directory - if required
+    - name: Creates 'LDOS 1.1.1' directory
+      file:
+        path: "{{ ldos_home }}"
+        state: directory
+      when: ldos.stat.exists == false
+      tags: 
+       - info
+
+    # Unarchive Lumada-DataOps_suite-1.1.1.gz
+    - name: Unarchive {{ ldos_archive }}
+      unarchive:
+        src: "{{ ldos_home }}/{{ ldos_archive }}"
+        dest: "{{ ldos_home }}"
+        creates: "{{ ldos_home }}/lumada-dataops-suite"
+      tags: 
+       - unpack  
+
+    # Unarchive Lumada-DataOps-Suite-Installer-1.1.1.zip
+    - name: Unarchive {{ installer_archive }}
+      unarchive:
+        src: "{{ ldos_home }}/{{ installer_archive }}"
+        dest: "{{ ldos_home }}"
+        creates: "{{ ldos_home }}/installer"
+      tags: [unpack]  
+
+    # Prepare env.properties
+    - name: get secret for solution-control-plane-sso-client
+      shell: 'kubectl get secrets keycloak-client-secret-solution-control-plane-sso-client -n hitachi-solutions --template=\{\{.data.CLIENT_SECRET\}\} | base64 --decode'
+      register: scp_sso_client_secret
+      tags: [env]
+
+    # Get the 'foundry' password 
+    - name: get foundry password
+      shell: "kubectl get keycloakusers -n hitachi-solutions keycloak-user -o jsonpath='{.spec.user.credentials[0].value}'"
+      register: foundry
+      tags: [env]
+    
+    # Replace the variables in env.properties
+    - name: Replace variables in {{ env_properties_file }} before install
+      shell: | 
+        cp {{ env_file }} {{ logs_dir }}/{{ env_file | basename }}.{{ 10000 | random }}.bak
+        sed -i 's|^hostname=*$|hostname={{ apiserver_loadbalancer_domain_name }}|1' {{ env_file }}
+        sed -i 's|^registry=*$|registry={{ registry_domain }}:{{ registry_port }}|1' {{ env_file }}
+        sed -i 's|^foundry_client_secret=*$|foundry_client_secret={{ scp_sso_client_secret.stdout }}|1' {{ env_file }}
+        sed -i 's|^username=*$|username=foundry|1' {{ env_file }}
+        sed -i 's|^password=*$|password={{ foundry.stdout }}|1' {{ env_file }}
+        sed -i 's|^volume_host=*$|volume_host={{ nfs_host }}|1' {{ env_file }}
+        sed -i 's|^volume_path=*$|volume_path={{ nfs_path }}|1' {{ env_file }}
+      tags: [env]
+
+    # Update Hostnames in HELM charts. Hostname is defined with {{placeholder}} in Helm Charts.  
+    # Careful as once defined there's no going back..!
+    - name: Update LDOS Hostname
+      shell: 
+        chdir: "{{ ldos_home }}"
+        cmd: "./installer/update-hostname.sh -c=lumada-dataops-suite/charts -h={{ apiserver_loadbalancer_domain_name }} -D true 2>&1 | tee -a {{ logs_dir }}/update-host-name.log"
+      async: 2500
+      poll: 30
+      register: ret
+      failed_when: "ret.rc > 0 or 'no such file' in ret.stdout"
+      tags: [update_hostname, ldos]
+
+    # Upload LDOS 1.1.1 solutions to Registry.
+    - name: Upload LDOS 1.1.1 Solutions to Registry
+      shell: 
+        chdir: "{{ ldos_home }}/lumada-dataops-suite"
+        cmd: "./control-plane/bin/upload-solutions.sh -C ./charts/ -I ./images/ -D true 2>&1 | tee -a {{ logs_dir }}/upload-ldos-solution.log"
+      async: 2500
+      poll: 30
+      register: ret
+      failed_when: "ret.rc > 0 or 'no such file' in ret.stdout"
+      tags: [install, upload_ldos]
+
+    # Install LDOS 1.1.1
+    - name: Install LDOS 1.1.1
+      shell: 
+        chdir: "{{ ldos_home }}/installer"
+        cmd: "./install.sh 2>&1 | tee -a {{ logs_dir }}/install-ldos.log"
+      async: 2500
+      poll: 30
+      tags: [ldos]
+
+    # Check for Running and Complete Pods
+    - name: Confirm Install
+      shell: "kubectl get pods -n hitachi-solutions | grep -i -e '[RC][uo][nm][np][il][ne]' | wc -l"
+      register: foundry_pods
+      tags: [ldos, info]
+
+    # Check for Non-Running or Failing Pods
+    - name: Confirm application status (URL or pods?)
+      shell: "kubectl get pods -n hitachi-solutions | grep -iv -e '[RC][uo][nm][np][il][ne]'"
+      register: results
+      tags: [ldos, info]
+
+    # Output URLs
+    - name: LDOS URLs
+      debug:
+        msg: 
+        - " Installation complete.... "
+        - " {{ foundry_pods.stdout }} running pods"
+        - " FAILING PODS: "
+        - "     {{ results.stdout }}"
+        - ""
+        - "URL: https://{{ apiserver_loadbalancer_domain_name }}/"
+        - "     as cmoore/cmoore"
+      tags: [ldos, info]
+      failed_when: results.stdout is defined
+

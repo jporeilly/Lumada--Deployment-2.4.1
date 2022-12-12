@@ -1,0 +1,195 @@
+## Install Foundry Control Plane
+- name: Install Foundry Services
+  hosts: "{{ groups['installer'][0] }}"
+  become: false
+  # become_method: sudo
+  gather_facts: true
+  vars:
+    installer_home: /installers
+    foundry_home: /installers/Foundry-Control-Plane-2.2.1/Foundry
+    foundry_root: Foundry-Control-Plane-2.2.1
+    metrics_home: /installers/metrics-addon-1.0.0
+    metrics_root: metrics-addon-1.0.0
+    logs_dir: /installers/logs
+
+    ansible_python_interpreter: /usr/bin/python3
+    
+  tasks:
+    - name: Ping Nodes
+      ping:
+      tags: 
+       - info
+
+    - name: Update all packages
+      yum:
+       name: '*'
+      tags: 
+       - info
+       - install 
+
+    # Checks for the logs directory
+    - name: Check if 'logs' directory exists
+      stat:
+        path: "{{ logs_dir }}"
+      register: logs
+      tags: 
+       - info 
+
+    - debug: 
+        msg: "logs directory exists: {{ logs.stat.exists }}"
+      tags: 
+       - info           
+
+    # Create a log directory - if required
+    - name: Create 'logs' Directory
+      file:
+       path: "{{ logs_dir }}"
+       state: directory
+      when: logs.stat.exists == false
+      tags: 
+       - info
+       - install
+
+    # Check for Foundry directory
+    - name: Check if the 'Foundry' directory exists
+      stat:
+        path: "{{ foundry_home }}"
+      register: foundry
+      tags: 
+       - info
+
+    - debug: 
+        msg: "foundry directory exists: {{ foundry.stat.exists }}"
+      tags: 
+       - info
+
+    # Create Foundry install directory - if required
+    - name: Create 'Foundry' directory
+      file:
+        path: "{{ foundry_home }}"
+        state: directory
+      when: foundry.stat.exists == false
+      tags: 
+       - info
+
+    # Unarchive Foundry-Control-Plane-2.2.1.tgz
+    - name: Unarchive {{ foundry_root }}.tgz
+      unarchive:
+        src: "{{ installer_home }}/{{ foundry_root }}.tgz"
+        dest: "{{ foundry_home }}"
+      tags: 
+       - unpack 
+
+    # Checks for the Metrics-addon-1.0.0. directory
+    - name: Check for 'Metrics 1.0.0' directory
+      stat:
+        path: "{{ metrics_home }}"
+      register: metrics
+      tags: 
+       - info 
+
+    - debug: 
+        msg: "metrics directory exists: {{ metrics.stat.exists }}"
+      tags: 
+       - info     
+
+    # Unarchive Metrics-addon-1.0.0.
+    - name: Unpack {{ metrics_root }}
+      unarchive: 
+        src: "{{ installer_home }}/{{ metrics_root }}.tgz"
+        dest: "{{ installer_home }}"
+      tags: 
+       - unpack 
+ 
+    # Foundry requires istio and cert-manager be installed
+    - name: Install Cluster Services
+      shell: 
+        chdir: "{{ foundry_home }}"
+        cmd: ./bin/install-cluster-services.sh -I -r {{ registry_domain }}:{{ registry_port }} -D true 2>&1 | tee -a {{ logs_dir }}/install-cluster-services.log
+      async: 2500
+      poll: 30
+      register: ret
+      failed_when: "ret.rc > 0 or 'no such file' in ret.stdout"
+      tags: 
+       - install_cs
+
+    # Install Hitachi Foundry CRDs
+    - name: Run Custom Resource Definitions Script
+      shell: 
+        chdir: "{{ foundry_home }}"
+        cmd: ./bin/apply-crds.sh -e -r {{ registry_domain }}:{{ registry_port }} --insecure -D true 2>&1 | tee -a {{ logs_dir }}/apply-crds.log
+      async: 2500
+      poll: 30
+      register: ret
+      failed_when: "ret.rc > 0 or 'no such file' in ret.stdout"
+      tags: 
+       - install
+       - install_cs
+
+    # Install the Foundry Soluton Control Plane services
+    - name: Install Foundry Solution Control Plane services
+      shell: 
+        chdir: "{{ foundry_home }}"
+        cmd: ./bin/install-control-plane.sh -I -r {{ registry_domain }}:{{ registry_port }} -D true -c https://{{ apiserver_loadbalancer_domain_name }} 2>&1 | tee -a {{ logs_dir }}/install-control-plane-2.2.1.log
+      async: 2500
+      poll: 30
+      register: ret
+      failed_when: "ret.rc > 0 or 'no such file' in ret.stdout"
+      tags: 
+       - install
+       - install_cp
+
+    # Install CRDs
+    - name: Install CRDs
+      shell: 
+        chdir: "{{ foundry_home }}"
+        cmd: ./bin/apply-crds.sh -r {{ registry_domain }}:{{ registry_port }} -C {{ metrics_home }}/crd-charts/ -k ~/.kube/config --insecure -x -D true 2>&1 | tee -a {{ logs_dir }}/install-crds.log
+      async: 2500
+      poll: 30
+      register: ret
+      failed_when: "ret.rc > 0 or 'no such file' in ret.stdout"
+      tags: 
+       - install
+       - metrics
+
+    # Upload Metrics addon
+    - name: Upload Metrics Add-On Solution
+      shell: 
+        chdir: "{{ foundry_home }}"
+        cmd: ./bin/upload-solutions.sh -C {{ metrics_home }}/charts/ -I {{ metrics_home }}/images/ -k ~/.kube/config -n hitachi-solutions -D true 2>&1 | tee -a {{ logs_dir }}/upload-metrics-add-on-1.0.0.log
+      async: 2500
+      poll: 30
+      register: ret
+      failed_when: "ret.rc > 0 or 'no such file' in ret.stdout"
+      tags: 
+       - install
+       - metrics
+
+    # Check hitachi-solutions pods
+    - name: Confirm Foundry
+      shell: "{{ item }}"
+      with_items:
+        - "kubectl get pods -n hitachi-solutions"
+      register: foundry_pods
+      tags: 
+      - install_cp
+      - info
+
+    # Foundry user password
+    - name: Confirm Foundry User
+      shell: echo $(kubectl get keycloakusers -n hitachi-solutions keycloak-user -o jsonpath="{.spec.user.credentials[0].value}")
+      register: foundry_pass
+      tags: 
+        - install_cp
+        - info
+
+    - name: Foundry URLs
+      debug:
+        msg: 
+        - " Installation complete.... "
+        - "          Logs can be found in {{ logs_dir }}"
+        - "          URL: https://{{ apiserver_loadbalancer_domain_name }}/hitachi-solutions/hscp-hitachi-solutions/solution-control-plane/"
+        - "          as foundry/{{ foundry_pass.stdout }}"
+      tags: 
+       - install_cp
+       - info

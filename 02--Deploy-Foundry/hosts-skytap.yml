@@ -1,0 +1,44 @@
+all:
+  hosts:
+    k8s-master-node-1.skytap.example:
+      ansible_host: 10.0.0.101
+      ip: 10.0.0.101
+      access_ip: 10.0.0.101
+    k8s-master-node-2.skytap.example:
+      ansible_host: 10.0.0.102
+      ip: 10.0.0.102
+      access_ip: 10.0.0.102
+    k8s-master-node-3.skytap.example:
+      ansible_host: 10.0.0.103
+      ip: 10.0.0.103
+      access_ip: 10.0.0.103
+    installer.skytap.example:
+      ansible_host: localhost
+      ip: 10.0.0.99
+      access_ip: 10.0.0.99
+      ansible_connection: local
+  children:
+    kube-master:
+      hosts:
+        k8s-master-node-1.skytap.example:
+        k8s-master-node-2.skytap.example:
+        k8s-master-node-3.skytap.example:
+    kube-node:
+      hosts:
+        k8s-master-node-1.skytap.example:
+        k8s-master-node-2.skytap.example:
+        k8s-master-node-3.skytap.example:
+    etcd:
+      hosts:
+        k8s-master-node-1.skytap.example:
+    k8s-cluster:
+      children:
+        kube-master:
+        kube-node:
+    calico-rr:
+      hosts: {}
+    installer:
+      hosts:
+        installer.skytap.example:
+        
+                
