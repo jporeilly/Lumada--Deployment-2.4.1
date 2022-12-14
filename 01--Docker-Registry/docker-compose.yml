@@ -1,15 +1,12 @@
 ---
 version: "3"
 services:
- registry:
-  restart: always
-  image: registry:2
-  ports:
-    - 5000:5000
-  environment:
-    REGISTRY_HTTP_TLS_CERTIFICATE: /certs/registry.crt
-    REGISTRY_HTTP_TLS_KEY: /certs/registry.key
-  volumes:
-    - /data:/var/lib/registry
-    - /certs:/certs
-    - /auth:/auth
+  registry:
+    restart: always  
+    image: registry:2
+    ports:
+      - 5000:5000
+    environment:
+      REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /data
+    volumes:
+      - ./data:/data
