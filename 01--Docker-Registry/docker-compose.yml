@@ -11,5 +11,4 @@ services:
     REGISTRY_HTTP_TLS_CERTIFICATE: /certs/registry.crt
     REGISTRY_HTTP_TLS_KEY: /certs/registry.key
   volumes:
-    - /data:/var/lib/registry
     - /certs:/certs
