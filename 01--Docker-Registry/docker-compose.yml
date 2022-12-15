@@ -1,5 +1,6 @@
 ---
-version: "3"
+version: '3'
+
 services:
   registry:
     restart: always  
@@ -9,4 +10,4 @@ services:
     environment:
       REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /data
     volumes:
-      - ./data:/data
+      - /data:/data
