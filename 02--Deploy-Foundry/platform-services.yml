@@ -1,6 +1,6 @@
 ## Install Foundry Control Plane
 - name: Install Foundry Services
-  hosts: ansible-controller.skytap.example
+  hosts: "{{ groups['installer'][0] }}"
   become: false
   # become_method: sudo
   gather_facts: true
