@@ -1,0 +1,140 @@
+## Install Foundry Control Plane
+- name: Install Foundry Services
+  hosts: "{{ groups['installer'][0] }}"
+  become: false
+  # become_method: sudo
+  gather_facts: true
+  vars:
+    installer_home: /Packages
+    foundry_home: /Packages/Foundry-Control-Plane-2.4.1/Foundry
+    foundry_root: Foundry-Control-Plane-2.4.1
+    metrics_home: /Packages/metrics-addon-1.0.0
+    metrics_root: metrics-addon-1.0.0
+    logs_dir: /Packages/Foundry-Control-Plane-2.4.1/Foundry/Logs
+
+    ansible_python_interpreter: /usr/bin/python3
+    
+  tasks:
+    - name: Ping Nodes
+      ping:
+      tags: 
+       - info
+
+    - name: Update all packages
+      yum:
+       name: '*'
+      tags: 
+       - info
+       - install 
+
+    # Checks for the logs directory
+    - name: Check if 'Logs' directory exists
+      stat:
+        path: "{{ logs_dir }}"
+      register: logs
+      tags: 
+       - info 
+
+    - debug: 
+        msg: "logs directory exists: {{ logs.stat.exists }}"
+      tags: 
+       - info           
+
+    # Create a log directory - if required
+    - name: Create 'Logs' Directory
+      file:
+       path: "{{ logs_dir }}"
+       state: directory
+      when: logs.stat.exists == false
+      tags: 
+       - info
+       - install
+
+    # Check for Foundry directory
+    - name: Check if the 'Foundry' directory exists
+      stat:
+        path: "{{ foundry_home }}"
+      register: foundry
+      tags: 
+       - info
+
+    - debug: 
+        msg: "foundry directory exists: {{ foundry.stat.exists }}"
+      tags: 
+       - info
+
+    # Create Foundry install directory - if required
+    - name: Create 'Foundry' directory
+      file:
+        path: "{{ foundry_home }}"
+        state: directory
+      when: foundry.stat.exists == false
+      tags: 
+       - info
+
+    # Install Storage Class - OpenEBS
+    - name: Install OpenEBS
+      shell: 
+        chdir: /installers/foundry
+        cmd: kubectl apply -f https://openebs.github.io/charts/openebs-operator.yaml
+      tags: [install, install_ebs]
+
+    - name: Assign Default Storage Class
+      shell: 
+        chdir: /installers/foundry/control-plane
+        cmd: "kubectl patch storageclass openebs-hostpath -p '{\"metadata\": {\"annotations\":{\"storageclass.kubernetes.io/is-default-class\":\"true\"}}}'"
+      tags: [install, storage_class]       
+
+    # Unarchive Foundry-Control-Plane-2.4.1.tgz
+    - name: Unarchive {{ foundry_root }}.tgz
+      unarchive:
+        src: "{{ installer_home }}/{{ foundry_root }}.tgz"
+        dest: "{{ foundry_home }}"
+      tags: 
+       - unpack 
+
+    # Checks for the Metrics-addon-1.0.0. directory
+    - name: Check for 'Metrics 1.0.0' directory
+      stat:
+        path: "{{ metrics_home }}"
+      register: metrics
+      tags: 
+       - info 
+
+    - debug: 
+        msg: "metrics directory exists: {{ metrics.stat.exists }}"
+      tags: 
+       - info     
+
+    # Unarchive Metrics-addon-1.0.0.
+    - name: Unpack {{ metrics_root }}
+      unarchive: 
+        src: "{{ installer_home }}/{{ metrics_root }}.tgz"
+        dest: "{{ installer_home }}"
+      tags: 
+       - unpack 
+
+    # Foundry requires istio and cert-manager be installed
+    - name: Install Cluster Services
+      shell: 
+        chdir: "{{ foundry_home }}"
+        cmd: ./bin/install-cluster-services.sh -I -r {{ registry_domain }}:{{ registry_port }} -D true 2>&1 | tee -a {{ logs_dir }}/install-cluster-services.log
+      async: 2500
+      poll: 30
+      register: ret
+      failed_when: "ret.rc > 0 or 'no such file' in ret.stdout"
+      tags: 
+       - install_cs
+
+    # Install Hitachi Foundry CRDs
+    - name: Run Custom Resource Definitions Script
+      shell: 
+        chdir: "{{ foundry_home }}"
+        cmd: ./bin/apply-crds.sh -e -r {{ registry_domain }}:{{ registry_port }} --insecure -D true 2>&1 | tee -a {{ logs_dir }}/apply-crds.log
+      async: 2500
+      poll: 30
+      register: ret
+      failed_when: "ret.rc > 0 or 'no such file' in ret.stdout"
+      tags: 
+       - install
+       - install_cs      

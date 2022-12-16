@@ -8,10 +8,6 @@ ansible_ssh_private_key_file: "~/.ssh/id_rsa"
 ansible_ssh_private_key_file_name: "id_rsa"
 ansible_user: k8s
 
-# used for certificate home for docker registry (copied to remote hosts)
-local_user: installer
-user_home: /home/installer
-
 # Install metrics-server for K8s (top nodes, top pods)
 metrics_server_enabled: true
 
@@ -33,13 +29,13 @@ bin_ansible_callbacks: True
 #        This oftem means the cerificate must be created with the external DNS name.
 #        For example, "localhost" will install fine from the master node, but will
 #        not be accessible from the other nodes, or the UI.
-registry_domain: installer.skytap.example
+registry_domain: ansible-controller.skytap.example
 
-# master_node_for_registry: {{ groups['kube-master'][0] }}
-registry_port: 5000
+# master_node_for_registry: {{ groups['installer'][0] }}
+registry_port: 443
 
 # external load balancer for k8s masters
-apiserver_loadbalancer_domain_name: "pentaho-server-1.skytap.example"
+apiserver_loadbalancer_domain_name: "haproxy.skytap.example"
 
 # =====  DNS ===== 
 # Which name server are you using?
