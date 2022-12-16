@@ -94,7 +94,7 @@
         kubectl patch storageclass openebs-hostpath -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
       when: "'default' not in sc.stdout"
 
-    # Check 
+    # Check OpenEBS is installed
     - name: Check Openebs storageclass
       shell: kubectl get sc | grep default
       register: openebs
