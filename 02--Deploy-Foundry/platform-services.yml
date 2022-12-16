@@ -72,18 +72,34 @@
       tags: 
        - info
 
-    # Install Storage Class - OpenEBS
-    - name: Install OpenEBS
-      shell: 
-        chdir: /installers/foundry
-        cmd: kubectl apply -f https://openebs.github.io/charts/openebs-operator.yaml
-      tags: [install, install_ebs]
+    # Check Storage class
+    - name: Check storage class
+      shell: kubectl get sc -A | grep "(default)"
+      register: sc
+      ignore_errors: true
 
-    - name: Assign Default Storage Class
-      shell: 
-        chdir: /installers/foundry/control-plane
-        cmd: "kubectl patch storageclass openebs-hostpath -p '{\"metadata\": {\"annotations\":{\"storageclass.kubernetes.io/is-default-class\":\"true\"}}}'"
-      tags: [install, storage_class]       
+    # Install OpenEBS    
+    - name: Install openebs default storageclass (if needed)
+      shell: "{{ item }}"
+      with_items:
+        - kubectl create ns openebs
+        - helm repo add openebs https://openebs.github.io/charts
+        - helm repo update
+        - helm install --namespace openebs openebs openebs/openebs
+      when: "'default' not in sc.stdout"
+
+    # Set OpenEBS as default Storage Class
+    - name: Set openEBs as default storageclass
+      shell: |
+        kubectl patch storageclass openebs-hostpath -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+      when: "'default' not in sc.stdout"
+
+    # Check 
+    - name: Check Openebs storageclass
+      shell: kubectl get sc | grep default
+      register: openebs
+      failed_when: "'openebs-hostpath' not in openebs.stdout"
+      when: "'default' not in sc.stdout"       
 
     # Unarchive Foundry-Control-Plane-2.4.1.tgz
     - name: Unarchive {{ foundry_root }}.tgz
