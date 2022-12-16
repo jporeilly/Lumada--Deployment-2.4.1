@@ -1,51 +1,47 @@
 ---
-# Change default path to store Docker data
-docker_daemon_graph: "/var/lib/docker"
-  
 # ===== ANSIBLE/KUBERNETES ACCESS CONFIGS =====
 # Private Key for SSH
+# Required by Kubespray to initially connect to the API server.
 ansible_ssh_private_key_file: "~/.ssh/id_rsa"
 ansible_ssh_private_key_file_name: "id_rsa"
 ansible_user: k8s
 
-# Install metrics-server for K8s (top nodes, top pods)
+# ===== KUBESPRAY 2.20.0 DEFAULT CONFIGS =============
+# Kubespray has a bunch of defaults that you can overide.  
+# Kubespray default settings: ~/Packages/Kubespray-2.20.0/extra-playbooks/roles/kubespray-defaults/defaults/main.yaml
+#
+# Line 73: epel_enabled: true
+# Line 100: deploy_netchecker: true
+# Line 334: kubeconfig_localhost: true
+# Line 336: kubectl_localhost: true
+# Line 349: helm_enabled: true
+# Line 352: metrics_server_enabled: true
+# Line 480: apiserver_loadbalancer_domain_name: haproxy.skytap.example
+
+# Kubespray default overides
+
+# install kubectl and generates local admin.conf
+kubeconfig_localhost: true
+kubectl_localhost: true
+# enables Helm
+helm_enabled: true
+# enables k8s metrics
 metrics_server_enabled: true
 
-# Ansible: Use the YAML callback plugin for cleaner output
-stdout_callback: yaml
-
-# Use the stdout_callback when running ad-hoc commands.
-bin_ansible_callbacks: True
-
-# ===== FOUNDRY CONTROL PLANE =====
-# Python for pip and s3 cli
-# Only set this to python3 if python3 is on all hosts.  At this time we only force it on the installer.
-#ansible_python_interpreter: "/usr/bin/python"
-
-# Master node to run Lumada installs after k8s has been deployed
-# This node will also be used to host the shared registry for k8s
-# NOTE:  this can install locally with a lot of values.   But it must be accessible
-#        by name from the foundry UI (inside the pods) to complete the installation.
-#        This oftem means the cerificate must be created with the external DNS name.
-#        For example, "localhost" will install fine from the master node, but will
-#        not be accessible from the other nodes, or the UI.
-registry_domain: ansible-controller.skytap.example
-
-# master_node_for_registry: {{ groups['installer'][0] }}
-registry_port: 443
-
-# external load balancer for k8s masters
+# External load balancer for k8s masters
 apiserver_loadbalancer_domain_name: "haproxy.skytap.example"
 
+# ===== DOCKER REGISTRY =============
+# Set the Docker Registry
+
+# registry hostname
+registry_domain: "ansible-controller.skytap.example"
+# registry port
+registry_port: 443
+
 # =====  DNS ===== 
-# Which name server are you using?
 # If on AWS and HV you will likley need to change the DNS route
 # to allow AWS private DNS lookup from inside the cluster.
 change_dns: true
-#dns_server: 169.254.169.253 # aws private dns
-dns_server: 10.0.0.254 # SkyTap DNS
-
-# =====  LDOS ===== 
-nfs_host: 10.0.0.1
-nfs_path: /data/pdi
-install_type: LDOS
+# SkyTap DNS
+dns_server: 10.0.0.254
