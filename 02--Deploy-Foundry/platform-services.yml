@@ -1,8 +1,9 @@
 ## Install Foundry Control Plane
-- name: Install Foundry Services
+---
+# Download Kubespray 2.20.0 - Kubernetes 1.24.6
+- name: Download Kubespray
   hosts: "{{ groups['installer'][0] }}"
   become: false
-  # become_method: sudo
   gather_facts: true
   vars:
     installer_home: /Packages
@@ -20,6 +21,7 @@
       tags: 
        - info
 
+    # Update Packages
     - name: Update all packages
       yum:
        name: '*'
