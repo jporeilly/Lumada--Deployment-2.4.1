@@ -19,9 +19,17 @@
       tags: 
        - info
 
+    # Update Cache
+    - name: Update cache
+      apt:
+       upodate_cache: yes
+      tags:
+       - info
+       - install   
+
     # Update Packages
     - name: Update all packages
-      yum:
+      apt:
        name: '*'
       tags: 
        - info
