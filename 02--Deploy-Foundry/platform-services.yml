@@ -135,7 +135,7 @@
     - name: Install Cluster Services
       shell: 
         chdir: "{{ foundry_home }}"
-        cmd: ./bin/install-cluster-services.sh -r {{ registry_domain }}:{{ registry_port }} -D true 2>&1 | tee -a {{ logs_dir }}/install-cluster-services.log
+        cmd: ./bin/install-cluster-services.sh -r {{ registry_domain }}:{{ registry_port }} -D true 2>&1 | tee -a {{ logs_dir }}/install-cluster-services-2.4.1.log
       async: 2500
       poll: 30
       register: ret
@@ -147,7 +147,7 @@
     - name: Run Custom Resource Definitions Script
       shell: 
         chdir: "{{ foundry_home }}"
-        cmd: ./bin/apply-crds.sh -e --skip_cluster_url_check -r {{ registry_domain }}:{{ registry_port }} --insecure -D true 2>&1 | tee -a {{ logs_dir }}/apply-crds.log
+        cmd: ./bin/apply-crds.sh -e --skip_cluster_url_check -r {{ registry_domain }}:{{ registry_port }} --insecure -D true 2>&1 | tee -a {{ logs_dir }}/apply-crds-2.4.1.log
       async: 2500
       poll: 30
       register: ret
