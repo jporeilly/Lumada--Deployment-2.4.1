@@ -1,0 +1,51 @@
+all:
+  hosts:
+    haproxy.skytap.example:
+      ansible_host: 10.0.0.1
+      ip: 10.0.0.1
+      access_ip: 10.0.0.1
+      ansible_user: ha-proxy
+    master-node-01.skytap.example:
+      ansible_host: 10.0.0.101
+      ip: 10.0.0.101
+      access_ip: 10.0.0.101
+      ansible_user: k8s
+    master-node-02.skytap.example:
+      ansible_host: 10.0.0.102
+      ip: 10.0.0.102
+      access_ip: 10.0.0.102
+      ansible_user: k8s
+    worker-node-01.skytap.example:
+      ansible_host: 10.0.0.103
+      ip: 10.0.0.103
+      access_ip: 10.0.0.103
+      ansible_user: k8s
+    ansible-controller.skytap.example:
+      ansible_host: localhost
+      ip: 10.0.0.2
+      access_ip: 10.0.0.2
+      ansible_user: installer
+      ansible_connection: local 
+  children:
+    kube-master:
+      hosts:
+        master-node-01.skytap.example:
+        master-node-02.skytap.example:
+    kube-node:
+      hosts:
+        worker-node-01.skytap.example:
+    etcd:
+      hosts:
+        master-node-01.skytap.example:
+    k8s-cluster:
+      children:
+        kube-master:
+        kube-node:
+    installer:
+      hosts:
+        ansible-controller.skytap.example: 
+    haproxy:
+      hosts:
+        haproxy.skytap.example:           
+    calico-rr:
+      hosts: {}
