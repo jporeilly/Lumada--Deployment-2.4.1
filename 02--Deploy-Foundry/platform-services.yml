@@ -56,6 +56,29 @@
       failed_when: "'openebs-hostpath' not in openebs.stdout"
       when: "'default' not in sc.stdout"   
 
+    # Checks for the logs directory
+    - name: Check if 'logs' directory exists
+      stat:
+        path: "{{ logs_dir }}"
+      register: logs
+      tags: 
+       - info 
+
+    - debug: 
+        msg: "logs directory exists: {{ logs.stat.exists }}"
+      tags: 
+       - info           
+
+    # Create a log directory - if required
+    - name: Create 'logs' Directory
+      file:
+       path: "{{ logs_dir }}"
+       state: directory
+      when: logs.stat.exists == false
+      tags: 
+       - info
+       - install
+
     # Check for Foundry directory
     - name: Check if the 'Foundry' directory exists
       stat:
@@ -77,29 +100,6 @@
       when: foundry.stat.exists == false
       tags: 
        - info
-
-    # Checks for the logs directory
-    - name: Check if 'Logs' directory exists
-      stat:
-        path: "{{ logs_dir }}"
-      register: logs
-      tags: 
-       - info 
-
-    - debug: 
-        msg: "logs directory exists: {{ logs.stat.exists }}"
-      tags: 
-       - info           
-
-    # Create a log directory - if required
-    - name: Create 'Logs' Directory
-      file:
-       path: "{{ logs_dir }}"
-       state: directory
-      when: logs.stat.exists == false
-      tags: 
-       - info
-       - install
 
     # Unarchive Foundry-Control-Plane-2.4.1.tgz
     - name: Unarchive {{ foundry_root }}.tgz
@@ -129,7 +129,7 @@
         dest: "{{ installer_home }}"
       tags: 
        - unpack 
-
+ 
     # Foundry requires istio and cert-manager be installed
     - name: Install Cluster Services
       shell: 
@@ -153,4 +153,4 @@
       failed_when: "ret.rc > 0 or 'no such file' in ret.stdout"
       tags: 
        - install
-       - install_cs      
+       - install_cs  
