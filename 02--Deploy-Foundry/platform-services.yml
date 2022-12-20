@@ -1,7 +1,12 @@
+<<<<<<< Updated upstream
 ## Install Foundry Control Plane
 ---
 # Download Kubespray 2.20.0 - Kubernetes 1.24.6
 - name: Download Kubespray
+=======
+## Deploy OpenEBS & Platform Services
+- name: Install Foundry Services
+>>>>>>> Stashed changes
   hosts: "{{ groups['installer'][0] }}"
   become: false
   gather_facts: true
