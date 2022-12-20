@@ -35,28 +35,34 @@
        - info
        - install 
 
-    # Checks for the logs directory
-    - name: Check if 'Logs' directory exists
-      stat:
-        path: "{{ logs_dir }}"
-      register: logs
-      tags: 
-       - info 
+    # Install OpenEBS    
+    - name: Install openebs default storageclass (if needed)
+      shell: "{{ item }}"
+      with_items:
+        - kubectl create ns openebs
+        - helm repo add openebs https://openebs.github.io/charts
+        - helm repo update
+        - helm install --namespace openebs openebs openebs/openebs
+      when: "'default' not in sc.stdout"
 
-    - debug: 
-        msg: "logs directory exists: {{ logs.stat.exists }}"
-      tags: 
-       - info           
+    # Set OpenEBS as default Storage Class
+    - name: Set openEBs as default storageclass
+      shell: |
+        kubectl patch storageclass openebs-hostpath -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+      when: "'default' not in sc.stdout"
 
-    # Create a log directory - if required
-    - name: Create 'Logs' Directory
-      file:
-       path: "{{ logs_dir }}"
-       state: directory
-      when: logs.stat.exists == false
-      tags: 
-       - info
-       - install
+    # Check OpenEBS is installed
+    - name: Check Openebs storageclass
+      shell: kubectl get sc | grep default
+      register: openebs
+      failed_when: "'openebs-hostpath' not in openebs.stdout"
+      when: "'default' not in sc.stdout"   
+
+    # Check Storage class
+    - name: Check storage class
+      shell: kubectl get sc -A | grep "(default)"
+      register: sc
+      ignore_errors: true
 
     # Check for Foundry directory
     - name: Check if the 'Foundry' directory exists
@@ -80,34 +86,28 @@
       tags: 
        - info
 
-    # Check Storage class
-    - name: Check storage class
-      shell: kubectl get sc -A | grep "(default)"
-      register: sc
-      ignore_errors: true
+    # Checks for the logs directory
+    - name: Check if 'Logs' directory exists
+      stat:
+        path: "{{ logs_dir }}"
+      register: logs
+      tags: 
+       - info 
 
-    # Install OpenEBS    
-    - name: Install openebs default storageclass (if needed)
-      shell: "{{ item }}"
-      with_items:
-        - kubectl create ns openebs
-        - helm repo add openebs https://openebs.github.io/charts
-        - helm repo update
-        - helm install --namespace openebs openebs openebs/openebs
-      when: "'default' not in sc.stdout"
+    - debug: 
+        msg: "logs directory exists: {{ logs.stat.exists }}"
+      tags: 
+       - info           
 
-    # Set OpenEBS as default Storage Class
-    - name: Set openEBs as default storageclass
-      shell: |
-        kubectl patch storageclass openebs-hostpath -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
-      when: "'default' not in sc.stdout"
-
-    # Check OpenEBS is installed
-    - name: Check Openebs storageclass
-      shell: kubectl get sc | grep default
-      register: openebs
-      failed_when: "'openebs-hostpath' not in openebs.stdout"
-      when: "'default' not in sc.stdout"       
+    # Create a log directory - if required
+    - name: Create 'Logs' Directory
+      file:
+       path: "{{ logs_dir }}"
+       state: directory
+      when: logs.stat.exists == false
+      tags: 
+       - info
+       - install
 
     # Unarchive Foundry-Control-Plane-2.4.1.tgz
     - name: Unarchive {{ foundry_root }}.tgz
