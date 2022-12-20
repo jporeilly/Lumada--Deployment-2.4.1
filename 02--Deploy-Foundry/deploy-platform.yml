@@ -1,0 +1,80 @@
+---
+# Install Foundry Control Plane
+- name: Install Foundry Services
+  hosts: "{{ groups['installer'][0] }}"
+  become: false
+  gather_facts: true
+  vars:
+    packages_dir: /home/installer/Packages
+    foundry_home: /home/installer/Packages/Foundry-2.4.1
+    foundry_package: Foundry-2.4.1
+    foundry_control: Foundry-Control-Plane-2.4.1
+    logs_dir: /home/installer/Packages/Foundry-2.4.1/Logs
+    
+  tasks:
+    - name: Ping Nodes
+      ping:
+      tags: 
+       - info
+   
+    # Deploy the Foundry Soluton Control Plane
+    - name: Deploy Foundry Solution Control Plane
+      shell: 
+        chdir: "{{ foundry_home }}"
+        cmd: ./bin/install-control-plane.sh -r worker-node-01.skytap.example:31320 -D true -c https://{{ apiserver_loadbalancer_domain_name }} 2>&1 | tee -a {{ logs_dir }}/install-control-plane-2.2.1.log
+      async: 2500
+      poll: 30
+      register: ret
+      failed_when: "ret.rc > 0 or 'no such file' in ret.stdout"
+      tags: 
+       - install
+       - install_cp
+
+    - name: Install Metrics Add-On
+      shell: 
+        chdir: "{{ foundry_home }}/control-plane"
+        cmd: ./tools/bin/apply-crds.sh -r worker-node-01.skytap.example:31320 -C ./metrics-addon-1.0.0/crd-charts/ -k ~/.kube/config --insecure -x 2>&1 | tee -a ./install-logs/install-metrics-add-on.log
+      async: 2500
+      poll: 30
+      register: ret
+      failed_when: "ret.rc > 0 or 'no such file' in ret.stdout"
+      tags: [install, install_metrics]
+
+    - name: Upload Metrics Add-On Solution
+      shell: 
+        chdir: "{{ foundry_home }}/control-plane"
+        cmd: ./tools/bin/upload-solutions.sh -C metrics-addon-1.0.0/charts/  metrics-addon-1.0.0/images/ -k ~/.kube/config -n hitachi-solutions 2>&1 | tee -a ./install-logs/install-metrics-add-on.log
+      async: 2500
+      poll: 30
+      register: ret
+      failed_when: "ret.rc > 0 or 'no such file' in ret.stdout"
+      tags: [install, upload_metrics]       
+
+    # Check hitachi-solutions pods
+    - name: Confirm Foundry
+      shell: "{{ item }}"
+      with_items:
+        - "kubectl get pods -n hitachi-solutions"
+      register: foundry_pods
+      tags:
+       - install 
+       - info
+
+    # Foundry user password
+    - name: Confirm Foundry User
+      shell: echo $(kubectl get keycloakusers -n hitachi-solutions keycloak-user -o jsonpath="{.spec.user.credentials[0].value}")
+      register: foundry_pass
+      tags:
+       - install 
+       - info
+
+    - name: Foundry URLs
+      debug:
+        msg: 
+        - " Installation complete.... "
+        - "          Logs can be found in {{ logs_dir }}"
+        - "          URL: https://{{ apiserver_loadbalancer_domain_name }}/hitachi-solutions/hscp-hitachi-solutions/solution-control-plane/"
+        - "          as foundry/{{ foundry_pass.stdout }}"
+      tags: 
+       - install
+       - info
