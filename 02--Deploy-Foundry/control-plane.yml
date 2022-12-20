@@ -1,0 +1,14 @@
+# Deploy Control Plane & Metrics Server
+- name: Deploy Control Plane
+  hosts: "{{ groups['installer'][0] }}"
+  become: false
+  gather_facts: true
+  vars:
+    installer_home: /home/installer/Packages
+    foundry_home: /home/installer/Packages/Foundry-Control-Plane-2.4.1/Foundry
+    foundry_root: Foundry-Control-Plane-2.4.1
+    metrics_home: /home/installer/Packages/metrics-addon-1.0.0
+    metrics_root: metrics-addon-1.0.0
+    logs_dir: /home/installer/Packages/Foundry-Control-Plane-2.4.1/Foundry/Logs
+
+    ansible_python_interpreter: /usr/bin/python3
