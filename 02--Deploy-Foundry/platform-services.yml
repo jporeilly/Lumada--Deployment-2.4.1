@@ -1,6 +1,5 @@
 # Deploy OpenEBS & Platform Services
-- name: Install Foundry Services
->>>>>>> Stashed changes
+- name: Deploy OpenEBS & Platform Services
   hosts: "{{ groups['installer'][0] }}"
   become: false
   gather_facts: true
@@ -135,7 +134,7 @@
     - name: Install Cluster Services
       shell: 
         chdir: "{{ foundry_home }}"
-        cmd: ./bin/install-cluster-services.sh -I -r {{ registry_domain }}:{{ registry_port }} -D true 2>&1 | tee -a {{ logs_dir }}/install-cluster-services.log
+        cmd: ./bin/install-cluster-services.sh -r {{ registry_domain }}:{{ registry_port }} -D true 2>&1 | tee -a {{ logs_dir }}/install-cluster-services.log
       async: 2500
       poll: 30
       register: ret
