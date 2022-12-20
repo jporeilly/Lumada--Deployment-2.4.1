@@ -19,14 +19,6 @@
       tags: 
        - info
 
-    # Update Cache
-    - name: Update cache
-      apt:
-       upodate_cache: yes
-      tags:
-       - info
-       - install   
-
     # Update Packages
     - name: Update all packages
       apt:
@@ -34,6 +26,12 @@
       tags: 
        - info
        - install 
+
+    # Check Storage class
+    - name: Check storage class
+      shell: kubectl get sc -A | grep "(default)"
+      register: sc
+      ignore_errors: true   
 
     # Install OpenEBS    
     - name: Install openebs default storageclass (if needed)
@@ -57,12 +55,6 @@
       register: openebs
       failed_when: "'openebs-hostpath' not in openebs.stdout"
       when: "'default' not in sc.stdout"   
-
-    # Check Storage class
-    - name: Check storage class
-      shell: kubectl get sc -A | grep "(default)"
-      register: sc
-      ignore_errors: true
 
     # Check for Foundry directory
     - name: Check if the 'Foundry' directory exists
