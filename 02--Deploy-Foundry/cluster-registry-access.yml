@@ -17,9 +17,9 @@
       - name: Create Registry certificate directory on cluster nodes
         shell: "mkdir -p /etc/docker/certs.d/{{ groups['installer'][0] }}:5000"
 
-      - name: Set ownership of Regsitry certificate directory to installer
+      - name: Set ownership of Regsitry certificate directory to k8s
         shell: "chown {{ ansible_user }}:{{ ansible_user }} /etc/docker/certs.d/{{ groups['installer'][0] }}:5000"
-      when: '"{{ registry }}" == "{{ groups[''installer''][0] }}"'
+      when: '"{{ registry_domain }}" == "{{ groups[''installer''][0] }}"'
 
 
 - name: Copy Registry certificate from installer node to cluster
