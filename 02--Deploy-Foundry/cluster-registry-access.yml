@@ -1,0 +1,52 @@
+# Add Regsitry certificate to Cluster nodes
+- name: Create Registry Cert directory on cluster nodes
+  hosts: "{{ groups['kube-node']}}"
+  become: true
+  become_method: sudo
+  become_user: root
+  gather_facts: true
+  any_errors_fatal: true
+  tags:
+   - continue
+
+  # Only when the registry requested is the installer node will we install this.
+  # Otherwise, assume the registry is external and already defined 
+
+  tasks:
+    - block:
+      - name: Create Registry certificate directory on cluster nodes
+        shell: "mkdir -p /etc/docker/certs.d/{{ groups['installer'][0] }}:5000"
+
+      - name: Set ownership of Regsitry certificate directory to installer
+        shell: "chown {{ ansible_user }}:{{ ansible_user }} /etc/docker/certs.d/{{ groups['installer'][0] }}:5000"
+      when: '"{{ registry }}" == "{{ groups[''installer''][0] }}"'
+
+
+- name: Copy Registry certificate from installer node to cluster
+  become: false
+  gather_facts: false
+  hosts:  "{{ groups['kube-node'] }}" 
+  any_errors_fatal: true
+  tags: 
+   - continue
+
+  # Only when the registry requested is the installer node will we install this.
+  # Otherwise, we assume the registry is external and already defined
+  tasks:
+    - block:
+
+      - name: Transfer file from installer to cluster
+        shell: scp -i {{ user_home }}/.ssh/{{ ansible_ssh_private_key_file_name }} {{ user_home }}/certs/domain.crt {{ansible_user }}@{{ inventory_hostname }}:/etc/docker/certs.d/{{ groups['installer'][0] }}:5000
+        delegate_to: "{{ groups['installer'][0] }}"
+      
+      - name: Verify new cert directory on cluster
+        shell: | 
+          cd /etc/docker/certs.d/{{ groups['installer'][0] }}:5000;
+          pwd;
+          ls -l;
+        register: cert_path
+
+      - name: Show filepath for new docker cert
+        debug:
+          msg: "{{ cert_path.stdout_lines }}"
+      when: '"{{ registry }}" == "{{ groups[''installer''][0] }}"'
