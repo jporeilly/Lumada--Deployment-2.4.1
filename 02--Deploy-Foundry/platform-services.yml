@@ -110,27 +110,6 @@
       tags: 
        - unpack 
 
-    # Checks for the Metrics-addon-1.0.0. directory
-    - name: Check for 'Metrics 1.0.0' directory
-      stat:
-        path: "{{ metrics_home }}"
-      register: metrics
-      tags: 
-       - info 
-
-    - debug: 
-        msg: "metrics directory exists: {{ metrics.stat.exists }}"
-      tags: 
-       - info     
-
-    # Unarchive Metrics-addon-1.0.0.
-    - name: Unpack {{ metrics_root }}
-      unarchive: 
-        src: "{{ installer_home }}/{{ metrics_root }}.tgz"
-        dest: "{{ installer_home }}"
-      tags: 
-       - unpack 
- 
     # Foundry requires istio and cert-manager be installed
     - name: Install Cluster Services
       shell: 
